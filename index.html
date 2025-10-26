@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Exosquelette Cognitif</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Barre de titre + LLM -->
+  <header>
+    <h1>Exosquelette Cognitif</h1>
+    <div class="llm-container">
+      <label for="llmSelect">Choisir LLM:</label>
+      <select id="llmSelect">
+        <option value="https://chat.openai.com">GPT</option>
+        <option value="https://app.perplexity.ai">Perplexity</option>
+        <option value="https://www.anthropic.com/claude">Claude</option>
+        <option value="https://mistral.ai">Mistral</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <!-- Colonne Gauche : Phase 1 -->
+    <section class="phase1">
+      <h2>Phase 1 : Saisie & Contexte</h2>
+      <div class="input-task">
+        <input type="text" id="taskInput" placeholder="Nouvelle tâche…">
+        <button id="addBtn">Ajouter</button>
+      </div>
+
+      <ul id="tasksContainer" class="tasks-list"></ul>
+
+      <div class="actions">
+        <button id="clearBtn">🧹 Tout nettoyer</button>
+        <button id="archiveBtn">💾 Archiver</button>
+        <input type="file" id="restoreInput" style="display:none;">
+        <button id="restoreBtn">📂 Charger archive</button>
+        <button id="pushLLMBtn">🚀 Push LLM</button>
+      </div>
+    </section>
+
+    <!-- Colonne Droite : Phase 2 -->
+    <section class="phase2">
+      <h2>Phase 2 : Exécution & Modules</h2>
+      <textarea id="jsonPaste" placeholder="Collez ici le JSON du LLM…"></textarea>
+      <button id="pushJsonBtn">Charger le Plan</button>
+
+      <div class="modules">
+        <div id="jalonsModule">
+          <h3>Jalons & Actions</h3>
+          <ul id="jalonsList"></ul>
+        </div>
+
+        <div id="messagesModule">
+          <h3>Mails / Messages</h3>
+          <select id="mailPromptSelect">
+            <option value="Rédiger un email formel">Rédiger un email formel</option>
+            <option value="Résumé rapide">Résumé rapide</option>
+          </select>
+          <table id="messagesTable">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Destinataire</th>
+                <th>Sujet</th>
+                <th>Texte</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button id="generateMailBtn">Générer avec LLM</button>
+        </div>
+
+        <div id="meetingsModule">
+          <h3>Meetings / RDV</h3>
+          <ul id="meetingsList"></ul>
+        </div>
+
+        <div id="livrablesModule">
+          <h3>Livrables</h3>
+          <select id="livrablePromptSelect">
+            <option value="Faire un plan de rapport">Faire un plan de rapport</option>
+            <option value="Créer la structure du document">Créer la structure du document</option>
+          </select>
+          <ul id="livrablesList"></ul>
+          <button id="generateLivrableBtn">Générer avec LLM</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
