@@ -31,58 +31,71 @@ function formatDate(iso) {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-// --- Render Tasks ---
+// --- Save tasks with debounce ---
+let saveTimeout;
+function saveTasks() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(()=>localStorage.setItem("tasks", JSON.stringify(tasks)), 200);
+}
+
+// --- Render single task ---
+function createTaskElement(task, index) {
+  const li = document.createElement("li");
+  li.className = "task-item";
+
+  const taskText = document.createElement("div");
+  taskText.className = "task-text";
+  taskText.textContent = task.text + " (ajoutée le "+task.date.split("T")[0]+")";
+
+  const commentBlock = document.createElement("div");
+  commentBlock.className = "comment-section";
+  commentBlock.style.display="none";
+
+  const commentList = document.createElement("ul");
+  if(task.comments?.length){
+    task.comments.forEach(c=>{
+      const cLi = document.createElement("li");
+      cLi.textContent = `[${formatDate(c.date)}] ${c.text}`;
+      commentList.appendChild(cLi);
+    });
+  }
+  commentBlock.appendChild(commentList);
+
+  const commentInputDiv = document.createElement("div");
+  commentInputDiv.className="comment-input";
+  const commentInput = document.createElement("input");
+  commentInput.placeholder="Ajouter un commentaire…";
+  const commentBtn = document.createElement("button");
+  commentBtn.textContent="+";
+  commentBtn.addEventListener("click", ()=>{
+    const val = commentInput.value.trim();
+    if(val!==""){
+      if(!task.comments) task.comments=[];
+      task.comments.push({text: val, date: new Date().toISOString()});
+      commentInput.value="";
+      saveTasks();
+      renderTasks(); // re-render is safe because it’s debounced
+    }
+  });
+  commentInputDiv.appendChild(commentInput);
+  commentInputDiv.appendChild(commentBtn);
+  commentBlock.appendChild(commentInputDiv);
+
+  li.appendChild(taskText);
+  li.appendChild(commentBlock);
+
+  taskText.addEventListener("click", ()=>{
+    commentBlock.style.display = commentBlock.style.display==="none" ? "block" : "none";
+  });
+
+  return li;
+}
+
+// --- Render all tasks ---
 function renderTasks() {
   tasksContainer.innerHTML = "";
-  tasks.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach((task,i)=>{
-    const li = document.createElement("li");
-    li.className = "task-item";
-
-    const taskText = document.createElement("div");
-    taskText.className = "task-text";
-    taskText.textContent = task.text + " (ajoutée le "+task.date.split("T")[0]+")";
-
-    const commentBlock = document.createElement("div");
-    commentBlock.className = "comment-section";
-    commentBlock.style.display="none";
-
-    const commentList = document.createElement("ul");
-    if(task.comments?.length){
-      task.comments.forEach(c=>{
-        const cLi=document.createElement("li");
-        cLi.textContent=`[${formatDate(c.date)}] ${c.text}`;
-        commentList.appendChild(cLi);
-      });
-    }
-    commentBlock.appendChild(commentList);
-
-    const commentInputDiv = document.createElement("div");
-    commentInputDiv.className="comment-input";
-    const commentInput = document.createElement("input");
-    commentInput.placeholder="Ajouter un commentaire…";
-    const commentBtn = document.createElement("button");
-    commentBtn.textContent="+";
-    commentBtn.addEventListener("click", ()=>{
-      const val = commentInput.value.trim();
-      if(val!==""){
-        if(!task.comments) task.comments=[];
-        task.comments.push({text:val,date:new Date().toISOString()});
-        localStorage.setItem("tasks",JSON.stringify(tasks));
-        commentInput.value="";
-        renderTasks();
-      }
-    });
-    commentInputDiv.appendChild(commentInput);
-    commentInputDiv.appendChild(commentBtn);
-    commentBlock.appendChild(commentInputDiv);
-
-    li.appendChild(taskText);
-    li.appendChild(commentBlock);
-    tasksContainer.appendChild(li);
-
-    taskText.addEventListener("click", ()=>{
-      commentBlock.style.display = commentBlock.style.display==="none" ? "block" : "none";
-    });
+  tasks.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach((task, i)=>{
+    tasksContainer.appendChild(createTaskElement(task, i));
   });
 }
 
@@ -90,9 +103,9 @@ function renderTasks() {
 addBtn.addEventListener("click", ()=>{
   const text = taskInput.value.trim();
   if(text!==""){
-    tasks.push({text,date:new Date().toISOString(),comments:[]});
-    localStorage.setItem("tasks",JSON.stringify(tasks));
+    tasks.push({text, date:new Date().toISOString(), comments:[]});
     taskInput.value="";
+    saveTasks();
     renderTasks();
   }
 });
@@ -101,7 +114,7 @@ addBtn.addEventListener("click", ()=>{
 clearBtn.addEventListener("click", ()=>{
   if(confirm("Es-tu sûr ? Cette action est irréversible !")){
     tasks=[];
-    localStorage.removeItem("tasks");
+    saveTasks();
     renderTasks();
   }
 });
@@ -109,7 +122,7 @@ clearBtn.addEventListener("click", ()=>{
 // --- Archive Tasks ---
 archiveBtn.addEventListener("click", ()=>{
   if(tasks.length===0){alert("Aucune tâche à archiver !"); return;}
-  const blob = new Blob([JSON.stringify(tasks,null,2)],{type:"application/json"});
+  const blob = new Blob([JSON.stringify(tasks,null,2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -130,7 +143,7 @@ restoreInput.addEventListener("change", event=>{
       try{
         const data = JSON.parse(e.target.result);
         if(Array.isArray(data)) tasks=[...tasks,...data];
-        localStorage.setItem("tasks",JSON.stringify(tasks));
+        saveTasks();
         renderTasks();
         alert("✅ JSON restauré !");
       }catch(err){alert("❌ Impossible de lire le JSON");}
@@ -141,28 +154,7 @@ restoreInput.addEventListener("change", event=>{
 
 // --- Build Prompt ---
 function buildPrompt(tasks){
-  let combined = "Tu es un assistant de gestion de projet. Je vais te donner un texte contenant des tâches, des notes et des informations diverses, souvent incomplètes, peu structurées ou dispersées. Ta mission est de :
-
-1. Identifier toutes les tâches explicites et implicites.
-2. Extraire les micro-actions et micro-micro-actions nécessaires pour chaque tâche.
-3. Identifier les dépendances entre tâches et actions.
-4. Extraire les messages à envoyer, les livrables, les réunions et autres modules pertinents.
-5. Préserver les commentaires ou notes associées aux tâches.
-6. Générer un JSON structuré strictement sous ce format :
-
-{
-  "jalons": [{"titre":"","datePrévue":"","sousActions":[{"texte":"","statut":""}]}],
-  "messages": [{"destinataire":"","sujet":"","texte":"","envoyé":false}],
-  "rdv": [{"titre":"","date":"","durée":"","participants":[""]}],
-  "autresModules": [{"titre":"","items":[{"nom":"","lien":""}]}],
-  "livrables": [{"titre":"","type":"","template":{}}]
-}
-
-- Tout ce qui n’est pas explicitement précisé mais logiquement nécessaire doit être inféré.
-- Les actions non datées peuvent recevoir une date par défaut aujourd’hui.
-- La structure JSON doit être strictement respectée et parsable.
-
-Voici le texte à traiter :\n\n";
+  let combined = "Tu es un assistant de gestion de projet. Je vais te donner un texte contenant des tâches, des notes et des informations diverses, souvent incomplètes, peu structurées ou dispersées. Ta mission est de :\n\n1. Identifier toutes les tâches explicites et implicites.\n2. Extraire les micro-actions et micro-micro-actions nécessaires pour chaque tâche.\n3. Identifier les dépendances entre tâches et actions.\n4. Extraire les messages à envoyer, les livrables, les réunions et autres modules pertinents.\n5. Préserver les commentaires ou notes associées aux tâches.\n6. Générer un JSON structuré strictement sous ce format :\n\n{\n  \"jalons\": [{\"titre\":\"\",\"datePrévue\":\"\",\"sousActions\":[{\"texte\":\"\",\"statut\":\"\"}]}],\n  \"messages\": [{\"destinataire\":\"\",\"sujet\":\"\",\"texte\":\"\",\"envoyé\":false}],\n  \"rdv\": [{\"titre\":\"\",\"date\":\"\",\"durée\":\"\",\"participants\":[\"\"]}],\n  \"autresModules\": [{\"titre\":\"\",\"items\":[{\"nom\":\"\",\"lien\":\"\"}]}],\n  \"livrables\": [{\"titre\":\"\",\"type\":\"\",\"template\":{}}]\n}\n\n";
   tasks.forEach(t=>{
     combined += "- "+t.text+"\n";
     if(t.comments?.length){
@@ -175,12 +167,17 @@ Voici le texte à traiter :\n\n";
   return combined;
 }
 
-// --- Push LLM ---
+// --- Push LLM (limite popups) ---
+let llmWindow = null;
 pushLLMBtn.addEventListener("click", ()=>{
   if(tasks.length===0){alert("Pas de tâches à envoyer !"); return;}
   const prompt = buildPrompt(tasks);
   navigator.clipboard.writeText(prompt).then(()=>{
-    window.open(llmSelect.value,"_blank");
+    if(!llmWindow || llmWindow.closed){
+      llmWindow = window.open(llmSelect.value,"_blank");
+    } else {
+      llmWindow.focus();
+    }
   });
 });
 
@@ -220,6 +217,7 @@ function populateModules(){
   // Livrables
   livrablesList.innerHTML="";
   if(llmData.livrables?.length){
+    llrablesList.innerHTML = "";
     llmData.livrables.forEach((l,i)=>{
       const li = document.createElement("li");
       li.innerHTML = `<input type="checkbox"> ${l.titre} (${l.type}) <input type="text" placeholder="Note…">`;
@@ -230,7 +228,8 @@ function populateModules(){
 
 // --- Generate LLM for modules ---
 generateMailBtn.addEventListener("click", ()=>{
-  const selected=[];
+  if(!llmData || !llmData.messages) return;
+  const selected = [];
   messagesTableBody.querySelectorAll("tr").forEach((tr,i)=>{
     const cb = tr.querySelector("input[type='checkbox']");
     const note = tr.querySelector("input[type='text']").value;
@@ -238,12 +237,19 @@ generateMailBtn.addEventListener("click", ()=>{
   });
   if(selected.length){
     const text = JSON.stringify(selected,null,2);
-    navigator.clipboard.writeText(text).then(()=>window.open(llmSelect.value,"_blank"));
+    navigator.clipboard.writeText(text).then(()=>{
+      if(!llmWindow || llmWindow.closed){
+        llmWindow = window.open(llmSelect.value,"_blank");
+      } else {
+        llmWindow.focus();
+      }
+    });
   }
 });
 
 generateLivrableBtn.addEventListener("click", ()=>{
-  const selected=[];
+  if(!llmData || !llmData.livrables) return;
+  const selected = [];
   livrablesList.querySelectorAll("li").forEach((li,i)=>{
     const cb = li.querySelector("input[type='checkbox']");
     const note = li.querySelector("input[type='text']").value;
@@ -251,7 +257,13 @@ generateLivrableBtn.addEventListener("click", ()=>{
   });
   if(selected.length){
     const text = JSON.stringify(selected,null,2);
-    navigator.clipboard.writeText(text).then(()=>window.open(llmSelect.value,"_blank"));
+    navigator.clipboard.writeText(text).then(()=>{
+      if(!llmWindow || llmWindow.closed){
+        llmWindow = window.open(llmSelect.value,"_blank");
+      } else {
+        llmWindow.focus();
+      }
+    });
   }
 });
 
